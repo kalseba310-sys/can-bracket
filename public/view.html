@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAN 2025 — Voir les pronos</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <div class="top">
+      <h1>CAN 2025 — Pronostics des amis</h1>
+      <nav>
+        <a href="./index.html">Créer mon prono</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2 style="margin:0 0 10px; font-size:16px;">Liste des pronos</h2>
+      <div id="list"></div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px; font-size:16px;">Détail</h2>
+      <div id="detail" class="notice">Clique sur un nom pour afficher son bracket.</div>
+      <div class="bracket" id="bracketRoot" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <script src="./view.js"></script>
+</body>
+</html>

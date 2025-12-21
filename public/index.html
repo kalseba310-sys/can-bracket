@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAN 2025 — Pronostics (Bracket)</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <div class="top">
+      <h1>CAN 2025 — Pronostics (8e → Finale + 3e place)</h1>
+      <nav>
+        <a href="./view.html">Voir les pronos</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="username">Ton nom</label>
+          <input id="username" type="text" placeholder="Ex: Amine" />
+          <div class="notice">Pas de mot de passe (mode “entre amis”).</div>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; align-items:end;">
+          <button class="secondary" id="btnReset">Réinitialiser</button>
+          <button class="primary" id="btnSubmit">Soumettre mon prono</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bracket" id="bracketRoot"></div>
+
+    <p class="small">
+      Astuce: choisis d’abord les équipes dans les 8e, puis sélectionne le gagnant de chaque match pour remplir automatiquement les tours suivants.
+    </p>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
