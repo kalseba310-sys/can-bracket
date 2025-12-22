@@ -1,37 +1,24 @@
-import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
+const express = require("express");
+const path = require("path");
 
 const app = express();
-
-// Pour Railway / production
 const PORT = process.env.PORT || 8080;
-
-// Fix __dirname avec ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route principale → affiche index.html
+// Route principale
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// API : ajouter une équipe (exemple)
+// Test API
 app.post("/team", (req, res) => {
-  const { name } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ error: "Nom requis" });
-  }
-
-  res.json({ success: true, name });
+  res.json({ success: true });
 });
 
-// Lancement du serveur
+// Start server (OBLIGATOIRE pour Railway)
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
