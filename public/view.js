@@ -1,43 +1,43 @@
-async function loadList() {
-  const container = document.querySelector("#list");
-  if (!container) return;
-
-  container.innerHTML = "Chargement...";
+(async () => {
+  const list = document.getElementById("list");
+  if (!list) return;
 
   try {
-    const res = await fetch("/api/pronos");
-    if (!res.ok) throw new Error("Erreur chargement");
+    const res = await fetch("/pronos");
+    const data = await res.json();
 
-    const list = await res.json();
-
-    if (!list.length) {
-      container.innerHTML = "<p>Aucun prono pour le moment.</p>";
+    if (!data.items || data.items.length === 0) {
+      list.innerHTML = "<p>Aucun prono pour le moment.</p>";
       return;
     }
 
-    container.innerHTML = "";
-    for (const item of list) {
-      const div = document.createElement("div");
-      div.style.padding = "10px";
-      div.style.borderBottom = "1px solid #eee";
-      div.style.cursor = "pointer";
-      div.innerHTML = `
-        <b>${item.name}</b>
-        <div style="opacity:.7;font-size:12px">${new Date(item.created_at).toLocaleString()}</div>
-      `;
+    list.innerHTML = "";
 
-      div.addEventListener("click", async () => {
-        const detail = await fetch(`/api/pronos/${item.id}`).then(r => r.json());
-        alert(`${detail.name}\n\nID: ${detail.id}\n\nVoir la console pour le détail.`);
-        console.log("DETAIL:", detail);
-      });
+    data.items.forEach((p) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.marginTop = "10px";
 
-      container.appendChild(div);
-    }
+      const title = document.createElement("h3");
+      title.textContent = p.name;
+
+      const meta = document.createElement("div");
+      meta.style.fontSize = "12px";
+      meta.style.opacity = "0.7";
+      meta.textContent = p.created_at ? `Envoyé: ${p.created_at}` : "";
+
+      const pre = document.createElement("pre");
+      pre.style.whiteSpace = "pre-wrap";
+      pre.textContent = JSON.stringify(p.selections, null, 2);
+
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(pre);
+
+      list.appendChild(card);
+    });
   } catch (e) {
-    console.error(e);
-    container.innerHTML = "<p>Erreur de chargement.</p>";
+    console.log(e);
+    list.innerHTML = "<p>Erreur de chargement des pronos.</p>";
   }
-}
-
-document.addEventListener("DOMContentLoaded", loadList);
+})();
