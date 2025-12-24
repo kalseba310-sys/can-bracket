@@ -1,552 +1,446 @@
-/* public/app.js
-   Bracket CAN 2025 (8e -> Finale + 3e place)
-   - Génère tout le tableau
-   - Propagation automatique des gagnants
-   - Boutons Réinitialiser / Soumettre (POST /submit si tu as l’API)
-*/
+/* =========================================================
+   CAN 2025 — Bracket (24 pays en 8e uniquement + propagation auto)
+   Format sauvegardé en serveur:
+   POST /submit { name, selections: { bracket, metaVersion:2 } }
+   ========================================================= */
 
-(() => {
-  // ---------- Helpers DOM ----------
-  const $ = (sel) => document.querySelector(sel);
+const COUNTRIES = [
+  "Maroc", "Mali", "Zambie", "Comores",
+  "Égypte", "Afrique du Sud", "Angola", "Zimbabwe",
+  "Nigeria", "Tunisie", "Ouganda", "Tanzanie",
+  "Sénégal", "RD Congo", "Bénin", "Botswana",
+  "Algérie", "Burkina Faso", "Guinée équatoriale", "Soudan",
+  "Côte d'Ivoire", "Cameroun", "Gabon", "Mozambique"
+];
 
-  function el(tag, attrs = {}, children = []) {
-    const node = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      if (k === "class") node.className = v;
-      else if (k === "text") node.textContent = v;
-      else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
-      else node.setAttribute(k, v);
+// Labels "tableau"
+const R16_SLOTS = [
+  { id:"m1", homeLabel:"1D", awayLabel:"3B/3E/3F" },
+  { id:"m2", homeLabel:"2A", awayLabel:"2C" },
+  { id:"m3", homeLabel:"1A", awayLabel:"3C/3D/3E" },
+  { id:"m4", homeLabel:"2B", awayLabel:"2F" },
+  { id:"m5", homeLabel:"1B", awayLabel:"3A/3C/3D" },
+  { id:"m6", homeLabel:"1F", awayLabel:"2E" },
+  { id:"m7", homeLabel:"1E", awayLabel:"2D" },
+  { id:"m8", homeLabel:"1C", awayLabel:"3A/3B/3F" },
+];
+
+function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
+
+// Bracket v2
+function makeEmptyBracket() {
+  return {
+    r16: {
+      m1:{home:"",away:"",winner:""},
+      m2:{home:"",away:"",winner:""},
+      m3:{home:"",away:"",winner:""},
+      m4:{home:"",away:"",winner:""},
+      m5:{home:"",away:"",winner:""},
+      m6:{home:"",away:"",winner:""},
+      m7:{home:"",away:"",winner:""},
+      m8:{home:"",away:"",winner:""},
+    },
+    qf: {
+      m1:{home:"",away:"",winner:"", homeFrom:"r16.m1", awayFrom:"r16.m2"},
+      m2:{home:"",away:"",winner:"", homeFrom:"r16.m3", awayFrom:"r16.m4"},
+      m3:{home:"",away:"",winner:"", homeFrom:"r16.m5", awayFrom:"r16.m6"},
+      m4:{home:"",away:"",winner:"", homeFrom:"r16.m7", awayFrom:"r16.m8"},
+    },
+    sf: {
+      m1:{home:"",away:"",winner:"", homeFrom:"qf.m1", awayFrom:"qf.m2"},
+      m2:{home:"",away:"",winner:"", homeFrom:"qf.m3", awayFrom:"qf.m4"},
+    },
+    final: {
+      m1:{home:"",away:"",winner:"", homeFrom:"sf.m1", awayFrom:"sf.m2"},
+    },
+    third: {
+      m1:{home:"",away:"",winner:""} // rempli depuis perdants des demis
     }
-    for (const c of children) node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-    return node;
+  };
+}
+
+let state = {
+  name: "",
+  bracket: makeEmptyBracket()
+};
+
+function $(id){ return document.getElementById(id); }
+
+function saveLocal() {
+  try {
+    localStorage.setItem("can2025_state_v2", JSON.stringify(state));
+  } catch {}
+}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem("can2025_state_v2");
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed?.bracket?.r16) state = parsed;
+  } catch {}
+}
+
+function getWinner(ref, bracket) {
+  // ref ex: "r16.m1"
+  const [stage, mid] = ref.split(".");
+  return bracket?.[stage]?.[mid]?.winner || "";
+}
+
+function autoFillParticipants() {
+  const b = state.bracket;
+
+  // Quarts participants = gagnants des 8e
+  for (const [id, m] of Object.entries(b.qf)) {
+    m.home = getWinner(m.homeFrom, b);
+    m.away = getWinner(m.awayFrom, b);
+    // si winner devenu invalide (ex: équipe changée) → reset
+    if (m.winner && m.winner !== m.home && m.winner !== m.away) m.winner = "";
   }
 
-  function setOptions(select, values, placeholder = "—") {
-    select.innerHTML = "";
-    select.appendChild(el("option", { value: "", text: placeholder }));
-    values.forEach((v) => select.appendChild(el("option", { value: v, text: v })));
+  // Demis participants = gagnants des quarts
+  for (const [id, m] of Object.entries(b.sf)) {
+    m.home = getWinner(m.homeFrom, b);
+    m.away = getWinner(m.awayFrom, b);
+    if (m.winner && m.winner !== m.home && m.winner !== m.away) m.winner = "";
   }
 
-  // ---------- Données (comme ton screenshot : codes de groupes) ----------
-  const initialR16 = [
-    { id: "r16_1", a: "1D", b: "3B/3E/3F", winnerSlot: "qf_1_a" },
-    { id: "r16_2", a: "2A", b: "2C", winnerSlot: "qf_1_b" },
-    { id: "r16_3", a: "1A", b: "3C/3D/3E", winnerSlot: "qf_2_a" },
-    { id: "r16_4", a: "2B", b: "2F", winnerSlot: "qf_2_b" },
-    { id: "r16_5", a: "1B", b: "3A/3C/3D", winnerSlot: "qf_3_a" },
-    { id: "r16_6", a: "1F", b: "2E", winnerSlot: "qf_3_b" },
-    { id: "r16_7", a: "1E", b: "2D", winnerSlot: "qf_4_a" },
-    { id: "r16_8", a: "1C", b: "3A/3B/3F", winnerSlot: "qf_4_b" },
-  ];
+  // Finale participants = gagnants des demis
+  {
+    const m = b.final.m1;
+    m.home = getWinner(m.homeFrom, b);
+    m.away = getWinner(m.awayFrom, b);
+    if (m.winner && m.winner !== m.home && m.winner !== m.away) m.winner = "";
+  }
 
-  // Les “slots” suivants sont des emplacements à remplir automatiquement
-  const slots = {
-    // Quarts (4 matchs)
-    qf_1_a: "", qf_1_b: "", qf_1_w: "sf_1_a",
-    qf_2_a: "", qf_2_b: "", qf_2_w: "sf_1_b",
-    qf_3_a: "", qf_3_b: "", qf_3_w: "sf_2_a",
-    qf_4_a: "", qf_4_b: "", qf_4_w: "sf_2_b",
+  // Match 3e place = perdants des demis
+  {
+    const sf1 = b.sf.m1, sf2 = b.sf.m2;
+    const sf1Loser = sf1.winner ? (sf1.winner === sf1.home ? sf1.away : sf1.home) : "";
+    const sf2Loser = sf2.winner ? (sf2.winner === sf2.home ? sf2.away : sf2.home) : "";
+    b.third.m1.home = sf1Loser || "";
+    b.third.m1.away = sf2Loser || "";
+    if (b.third.m1.winner && b.third.m1.winner !== b.third.m1.home && b.third.m1.winner !== b.third.m1.away) {
+      b.third.m1.winner = "";
+    }
+  }
+}
 
-    // Demis (2 matchs)
-    sf_1_a: "", sf_1_b: "", sf_1_w: "final_a", sf_1_l: "third_a",
-    sf_2_a: "", sf_2_b: "", sf_2_w: "final_b", sf_2_l: "third_b",
+function optionList(values, current) {
+  const opts = [`<option value="">—</option>`]
+    .concat(values.map(v => `<option value="${escapeHtml(v)}" ${v===current?"selected":""}>${escapeHtml(v)}</option>`));
+  return opts.join("");
+}
 
-    // Finale + 3e place
-    final_a: "", final_b: "", final_w: "champion",
-    third_a: "", third_b: "", third_w: "third",
-    champion: "",
-    third: "",
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function render() {
+  autoFillParticipants();
+  saveLocal();
+
+  // Important: ton index.html doit avoir ces containers:
+  // <div id="bracket"></div>
+  // <input id="name" />
+  // <button id="resetBtn">Réinitialiser</button>
+  // <button id="submitBtn">Soumettre mon prono</button>
+
+  if ($("name")) $("name").value = state.name || "";
+
+  const root = $("bracket");
+  if (!root) return;
+
+  root.innerHTML = "";
+
+  root.appendChild(roundR16());
+  root.appendChild(roundQF());
+  root.appendChild(roundSF());
+  root.appendChild(roundFinal());
+  root.appendChild(roundThird());
+}
+
+function mkCard(title, countText) {
+  const wrap = document.createElement("div");
+  wrap.className = "card";
+  wrap.style.border = "1px solid #e5e7eb";
+  wrap.style.borderRadius = "12px";
+  wrap.style.padding = "12px";
+  wrap.style.marginBottom = "12px";
+  wrap.style.background = "#fff";
+
+  const h = document.createElement("div");
+  h.style.display = "flex";
+  h.style.justifyContent = "space-between";
+  h.style.alignItems = "center";
+  h.style.marginBottom = "10px";
+
+  const t = document.createElement("div");
+  t.textContent = title;
+  t.style.fontWeight = "800";
+
+  const pill = document.createElement("div");
+  pill.textContent = countText;
+  pill.style.fontSize = "12px";
+  pill.style.background = "#111827";
+  pill.style.color = "#fff";
+  pill.style.padding = "2px 8px";
+  pill.style.borderRadius = "999px";
+
+  h.appendChild(t); h.appendChild(pill);
+  wrap.appendChild(h);
+
+  return wrap;
+}
+
+function mkMatchBlock(label) {
+  const m = document.createElement("div");
+  m.className = "match";
+  m.style.border = "1px solid #e5e7eb";
+  m.style.borderRadius = "12px";
+  m.style.padding = "10px";
+  m.style.marginBottom = "10px";
+
+  const l = document.createElement("div");
+  l.textContent = label;
+  l.style.fontSize = "12px";
+  l.style.color = "#6b7280";
+  l.style.marginBottom = "8px";
+
+  m.appendChild(l);
+  return m;
+}
+
+function mkSelect(html, onChange) {
+  const s = document.createElement("select");
+  s.innerHTML = html;
+  s.style.width = "100%";
+  s.style.padding = "10px";
+  s.style.border = "1px solid #e5e7eb";
+  s.style.borderRadius = "10px";
+  s.style.marginBottom = "8px";
+  s.addEventListener("change", onChange);
+  return s;
+}
+
+function mkDisabledInput(value) {
+  const i = document.createElement("input");
+  i.value = value || "—";
+  i.disabled = true;
+  i.style.width = "100%";
+  i.style.padding = "10px";
+  i.style.border = "1px solid #e5e7eb";
+  i.style.borderRadius = "10px";
+  i.style.marginBottom = "8px";
+  i.style.background = "#f9fafb";
+  return i;
+}
+
+function roundR16() {
+  const card = mkCard("Huitièmes de finale", "8 matchs");
+
+  for (const slot of R16_SLOTS) {
+    const match = state.bracket.r16[slot.id];
+    const block = mkMatchBlock(`${slot.id.toUpperCase()} — ${slot.homeLabel} vs ${slot.awayLabel}`);
+
+    // ✅ ici: 24 pays pour home/away (SEULEMENT en 8e)
+    const homeSel = mkSelect(optionList(COUNTRIES, match.home), () => {
+      match.home = homeSel.value;
+      if (match.winner && match.winner !== match.home && match.winner !== match.away) match.winner = "";
+      render();
+    });
+    const awaySel = mkSelect(optionList(COUNTRIES, match.away), () => {
+      match.away = awaySel.value;
+      if (match.winner && match.winner !== match.home && match.winner !== match.away) match.winner = "";
+      render();
+    });
+
+    // Winner = seulement 2 options (home/away) quand présents
+    const winOptions = [];
+    if (match.home) winOptions.push(match.home);
+    if (match.away && match.away !== match.home) winOptions.push(match.away);
+
+    const winnerSel = mkSelect(optionList(winOptions, match.winner), () => {
+      match.winner = winnerSel.value;
+      render();
+    });
+
+    block.appendChild(homeSel);
+    block.appendChild(awaySel);
+    block.appendChild(winnerSel);
+
+    card.appendChild(block);
+  }
+
+  return card;
+}
+
+function roundQF() {
+  const card = mkCard("Quarts de finale", "4 matchs");
+  const ids = ["m1","m2","m3","m4"];
+
+  ids.forEach((id, idx) => {
+    const match = state.bracket.qf[id];
+    const block = mkMatchBlock(`Quart #${idx+1}`);
+
+    // ❌ plus de liste 24 pays : participants auto
+    block.appendChild(mkDisabledInput(match.home));
+    block.appendChild(mkDisabledInput(match.away));
+
+    const winOptions = [];
+    if (match.home) winOptions.push(match.home);
+    if (match.away && match.away !== match.home) winOptions.push(match.away);
+
+    const winnerSel = mkSelect(optionList(winOptions, match.winner), () => {
+      match.winner = winnerSel.value;
+      render();
+    });
+
+    block.appendChild(winnerSel);
+    card.appendChild(block);
+  });
+
+  return card;
+}
+
+function roundSF() {
+  const card = mkCard("Demi-finales", "2 matchs");
+  const ids = ["m1","m2"];
+
+  ids.forEach((id, idx) => {
+    const match = state.bracket.sf[id];
+    const block = mkMatchBlock(`Demi #${idx+1}`);
+
+    block.appendChild(mkDisabledInput(match.home));
+    block.appendChild(mkDisabledInput(match.away));
+
+    const winOptions = [];
+    if (match.home) winOptions.push(match.home);
+    if (match.away && match.away !== match.home) winOptions.push(match.away);
+
+    const winnerSel = mkSelect(optionList(winOptions, match.winner), () => {
+      match.winner = winnerSel.value;
+      render();
+    });
+
+    block.appendChild(winnerSel);
+    card.appendChild(block);
+  });
+
+  return card;
+}
+
+function roundFinal() {
+  const card = mkCard("Finale", "1 match");
+  const match = state.bracket.final.m1;
+  const block = mkMatchBlock("Finale");
+
+  block.appendChild(mkDisabledInput(match.home));
+  block.appendChild(mkDisabledInput(match.away));
+
+  const winOptions = [];
+  if (match.home) winOptions.push(match.home);
+  if (match.away && match.away !== match.home) winOptions.push(match.away);
+
+  const winnerSel = mkSelect(optionList(winOptions, match.winner), () => {
+    match.winner = winnerSel.value;
+    render();
+  });
+
+  block.appendChild(winnerSel);
+  card.appendChild(block);
+  return card;
+}
+
+function roundThird() {
+  const card = mkCard("3e place", "1 match");
+  const match = state.bracket.third.m1;
+  const block = mkMatchBlock("3e place");
+
+  block.appendChild(mkDisabledInput(match.home));
+  block.appendChild(mkDisabledInput(match.away));
+
+  const winOptions = [];
+  if (match.home) winOptions.push(match.home);
+  if (match.away && match.away !== match.home) winOptions.push(match.away);
+
+  const winnerSel = mkSelect(optionList(winOptions, match.winner), () => {
+    match.winner = winnerSel.value;
+    render();
+  });
+
+  block.appendChild(winnerSel);
+  card.appendChild(block);
+  return card;
+}
+
+async function submitToServer() {
+  const name = (state.name || "").trim();
+  if (!name) {
+    alert("Entre ton nom avant de soumettre.");
+    return;
+  }
+
+  const payload = {
+    name,
+    selections: {
+      metaVersion: 2,
+      bracket: state.bracket
+    }
   };
 
-  // ---------- Persistance locale (pour ne pas perdre si refresh) ----------
-  const STORAGE_KEY = "can_bracket_v1";
-
-  function saveState(state) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }
-  function clearState() {
-    localStorage.removeItem(STORAGE_KEY);
-  }
-
-  // ---------- UI : trouve les éléments existants ----------
-  function getNameInput() {
-    // essaie plusieurs ids au cas où
-    return $("#name") || $("#nom") || $('input[type="text"]');
-  }
-
-  function ensureBracketRoot() {
-    // si tu as déjà <div id="bracket"> tant mieux
-    let root = $("#bracket");
-    if (!root) {
-      // sinon on insère un root juste après le bloc du nom si possible
-      root = el("div", { id: "bracket" });
-      const container = $(".container") || document.body;
-      container.appendChild(root);
-    }
-    return root;
-  }
-
-  function ensureButtons() {
-    // si tu as déjà tes boutons dans le HTML, on les récupère
-    const resetBtn =
-      $("#resetBtn") ||
-      [...document.querySelectorAll("button")].find((b) => /réinitialiser/i.test(b.textContent)) ||
-      null;
-
-    const submitBtn =
-      $("#submitBtn") ||
-      [...document.querySelectorAll("button")].find((b) => /soumettre/i.test(b.textContent)) ||
-      null;
-
-    return { resetBtn, submitBtn };
-  }
-
-  // ---------- Construction des cartes ----------
-  function matchCard(title, rows) {
-    return el("div", { class: "match-card" }, [
-      el("div", { class: "match-title", text: title }),
-      ...rows,
-    ]);
-  }
-
-  function row(label, select) {
-    return el("div", { class: "row" }, [
-      el("div", { class: "row-label", text: label }),
-      select,
-    ]);
-  }
-
-  function createSelect(id) {
-    const s = el("select", { "data-slot": id });
-    return s;
-  }
-
-  // ---------- Rendu complet ----------
-  function render() {
-    const root = ensureBracketRoot();
-    root.innerHTML = "";
-
-    // Ajout d’un petit CSS minimal si ton styles.css ne l’a plus
-    injectMiniCSS();
-
-    const r16Section = el("section", { class: "section" }, [
-      headerLine("Huitièmes", "8 matchs"),
-    ]);
-
-    // R16 cards
-    initialR16.forEach((m, idx) => {
-      const winnerSel = createSelect(m.id + "_w");
-
-      // options = {a,b}
-      setOptions(winnerSel, [m.a, m.b]);
-
-      winnerSel.addEventListener("change", () => {
-        const winner = winnerSel.value || "";
-        // remplir le slot du quart correspondant
-        slots[m.winnerSlot] = winner;
-
-        // Si on efface un gagnant, il faut aussi nettoyer la suite
-        cleanupDownstream();
-        fillNextOptionsAndValues();
-        saveCurrentState();
-      });
-
-      const card = matchCard(`8e #${idx + 1}`, [
-        row(m.a, staticSelectLike(m.a)),
-        row(m.b, staticSelectLike(m.b)),
-        row("Gagnant", winnerSel),
-      ]);
-
-      r16Section.appendChild(card);
-    });
-
-    const qfSection = el("section", { class: "section" }, [
-      headerLine("Quarts", "4 matchs"),
-    ]);
-
-    // Quarts
-    const qf = [
-      { id: "qf_1", a: "qf_1_a", b: "qf_1_b", w: "qf_1_w", title: "Quart #1", labelA: "Gagnant R16_1", labelB: "Gagnant R16_2" },
-      { id: "qf_2", a: "qf_2_a", b: "qf_2_b", w: "qf_2_w", title: "Quart #2", labelA: "Gagnant R16_3", labelB: "Gagnant R16_4" },
-      { id: "qf_3", a: "qf_3_a", b: "qf_3_b", w: "qf_3_w", title: "Quart #3", labelA: "Gagnant R16_5", labelB: "Gagnant R16_6" },
-      { id: "qf_4", a: "qf_4_a", b: "qf_4_b", w: "qf_4_w", title: "Quart #4", labelA: "Gagnant R16_7", labelB: "Gagnant R16_8" },
-    ];
-
-    qf.forEach((m) => {
-      const aSel = createSelect(m.a);
-      const bSel = createSelect(m.b);
-      const wSel = createSelect(m.id + "_w");
-
-      // aSel/bSel sont “verrouillés” (on affiche mais pas modifiable)
-      aSel.disabled = true;
-      bSel.disabled = true;
-
-      wSel.addEventListener("change", () => {
-        const winner = wSel.value || "";
-        // vers demis
-        slots[slots[m.w]] = winner; // m.w contient la clé ex qf_1_w => "sf_1_a"
-        cleanupDownstream();
-        fillNextOptionsAndValues();
-        saveCurrentState();
-      });
-
-      const card = matchCard(m.title, [
-        row(m.labelA, aSel),
-        row(m.labelB, bSel),
-        row("Gagnant", wSel),
-      ]);
-      qfSection.appendChild(card);
-    });
-
-    const sfSection = el("section", { class: "section" }, [
-      headerLine("Demi-finales", "2 matchs"),
-    ]);
-
-    const sf = [
-      { id: "sf_1", a: "sf_1_a", b: "sf_1_b", w: "sf_1_w", l: "sf_1_l", title: "Demi #1", labelA: "Gagnant QF_1", labelB: "Gagnant QF_2" },
-      { id: "sf_2", a: "sf_2_a", b: "sf_2_b", w: "sf_2_w", l: "sf_2_l", title: "Demi #2", labelA: "Gagnant QF_3", labelB: "Gagnant QF_4" },
-    ];
-
-    sf.forEach((m) => {
-      const aSel = createSelect(m.a);
-      const bSel = createSelect(m.b);
-      aSel.disabled = true;
-      bSel.disabled = true;
-
-      const wSel = createSelect(m.id + "_w");
-
-      wSel.addEventListener("change", () => {
-        const winner = wSel.value || "";
-        const loser = winner ? (winner === slots[m.a] ? slots[m.b] : slots[m.a]) : "";
-
-        slots[slots[m.w]] = winner; // final_a / final_b
-        slots[slots[m.l]] = loser;  // third_a / third_b
-
-        cleanupDownstream();
-        fillNextOptionsAndValues();
-        saveCurrentState();
-      });
-
-      const card = matchCard(m.title, [
-        row(m.labelA, aSel),
-        row(m.labelB, bSel),
-        row("Gagnant", wSel),
-      ]);
-      sfSection.appendChild(card);
-    });
-
-    const finalSection = el("section", { class: "section" }, [
-      headerLine("Finale + 3e place", "2 matchs"),
-    ]);
-
-    // Finale
-    const finalA = createSelect("final_a");
-    const finalB = createSelect("final_b");
-    finalA.disabled = true;
-    finalB.disabled = true;
-
-    const finalW = createSelect("final_winner");
-    finalW.addEventListener("change", () => {
-      slots.champion = finalW.value || "";
-      saveCurrentState();
-    });
-
-    const finalCard = matchCard("Finale", [
-      row("Finaliste A", finalA),
-      row("Finaliste B", finalB),
-      row("Champion", finalW),
-    ]);
-
-    // 3e place
-    const thirdA = createSelect("third_a");
-    const thirdB = createSelect("third_b");
-    thirdA.disabled = true;
-    thirdB.disabled = true;
-
-    const thirdW = createSelect("third_winner");
-    thirdW.addEventListener("change", () => {
-      slots.third = thirdW.value || "";
-      saveCurrentState();
-    });
-
-    const thirdCard = matchCard("3e place", [
-      row("Équipe A", thirdA),
-      row("Équipe B", thirdB),
-      row("3e", thirdW),
-    ]);
-
-    finalSection.appendChild(finalCard);
-    finalSection.appendChild(thirdCard);
-
-    root.appendChild(r16Section);
-    root.appendChild(qfSection);
-    root.appendChild(sfSection);
-    root.appendChild(finalSection);
-
-    // Restaurer un ancien état si présent
-    restoreStateIntoUI();
-
-    // Remplir tous les selects dépendants
-    fillNextOptionsAndValues();
-
-    // boutons
-    hookButtons();
-  }
-
-  function headerLine(title, badgeText) {
-    return el("div", { class: "section-header" }, [
-      el("h2", { class: "section-title", text: title }),
-      el("span", { class: "badge", text: badgeText }),
-    ]);
-  }
-
-  function staticSelectLike(textValue) {
-    const s = el("select", {});
-    setOptions(s, [textValue], textValue);
-    s.value = textValue;
-    s.disabled = true;
-    return s;
-  }
-
-  // ---------- Remplissage dynamique des tours suivants ----------
-  function fillNextOptionsAndValues() {
-    // Quarts A/B (verrouillés)
-    setLockedSlot("qf_1_a");
-    setLockedSlot("qf_1_b");
-    setLockedSlot("qf_2_a");
-    setLockedSlot("qf_2_b");
-    setLockedSlot("qf_3_a");
-    setLockedSlot("qf_3_b");
-    setLockedSlot("qf_4_a");
-    setLockedSlot("qf_4_b");
-
-    // Winner selects QF
-    setWinnerSelect("qf_1_w", ["qf_1_a", "qf_1_b"], "qf_1_winner");
-    setWinnerSelect("qf_2_w", ["qf_2_a", "qf_2_b"], "qf_2_winner");
-    setWinnerSelect("qf_3_w", ["qf_3_a", "qf_3_b"], "qf_3_winner");
-    setWinnerSelect("qf_4_w", ["qf_4_a", "qf_4_b"], "qf_4_winner");
-
-    // Demis A/B
-    setLockedSlot("sf_1_a");
-    setLockedSlot("sf_1_b");
-    setLockedSlot("sf_2_a");
-    setLockedSlot("sf_2_b");
-
-    // Winner selects SF
-    setWinnerSelect("sf_1_w", ["sf_1_a", "sf_1_b"], "sf_1_winner");
-    setWinnerSelect("sf_2_w", ["sf_2_a", "sf_2_b"], "sf_2_winner");
-
-    // Finale / 3e
-    setLockedSlot("final_a");
-    setLockedSlot("final_b");
-    setLockedSlot("third_a");
-    setLockedSlot("third_b");
-
-    // Winner finale / 3e
-    const finalTeams = [slots.final_a, slots.final_b].filter(Boolean);
-    const finalW = document.querySelector('[data-slot="final_winner"]');
-    if (finalW) {
-      setOptions(finalW, finalTeams);
-      if (slots.champion && finalTeams.includes(slots.champion)) finalW.value = slots.champion;
-      else finalW.value = "";
-    }
-
-    const thirdTeams = [slots.third_a, slots.third_b].filter(Boolean);
-    const thirdW = document.querySelector('[data-slot="third_winner"]');
-    if (thirdW) {
-      setOptions(thirdW, thirdTeams);
-      if (slots.third && thirdTeams.includes(slots.third)) thirdW.value = slots.third;
-      else thirdW.value = "";
-    }
-  }
-
-  function setLockedSlot(slotKey) {
-    const s = document.querySelector(`[data-slot="${slotKey}"]`);
-    if (!s) return;
-    const v = slots[slotKey] || "";
-    setOptions(s, v ? [v] : [], "—");
-    s.value = v || "";
-  }
-
-  function setWinnerSelect(slotKey, teamSlots, dataKey) {
-    // slotKey ex: qf_1_w (dans slots c’est "sf_1_a")
-    // teamSlots ex: ["qf_1_a", "qf_1_b"]
-    // dataKey ex: qf_1_winner (clé sauvegarde)
-    const teams = teamSlots.map((k) => slots[k]).filter(Boolean);
-
-    // l’élément winner select dans le DOM n’a pas forcément data-slot=slotKey
-    // ici on a créé avec id suffix "_w" => data-slot = "qf_1_w_w"
-    const domWinner = document.querySelector(`[data-slot="${slotKey}_w"]`) || document.querySelector(`[data-slot="${slotKey}"]`);
-    // Dans notre render, on l’a créé comme `${id}_w` ex "qf_1_w" => "qf_1_w"
-    const wSel = document.querySelector(`[data-slot="${slotKey.replace("_w", "")}_w"]`) || document.querySelector(`[data-slot="${slotKey}"]`);
-    const target = wSel || domWinner;
-
-    if (!target) return;
-
-    setOptions(target, teams);
-    const saved = (getSavedState()?.winners || {})[dataKey];
-    if (saved && teams.includes(saved)) target.value = saved;
-    else if (target.value && !teams.includes(target.value)) target.value = "";
-  }
-
-  // ---------- Nettoyage quand on change un match en amont ----------
-  function cleanupDownstream() {
-    // Si on casse un R16, on doit vider tout ce qui dépend
-    // On vide les slots “calculés” à partir des quarts/demis/finale
-    const toReset = [
-      "sf_1_a", "sf_1_b", "sf_2_a", "sf_2_b",
-      "final_a", "final_b", "third_a", "third_b",
-      "champion", "third",
-    ];
-    // NB: qf_*_a/_b sont remplis par R16, donc on ne les vide pas ici
-    // sf/finale seront recalculés via choix gagnants
-    toReset.forEach((k) => (slots[k] = slots[k] || ""));
-  }
-
-  // ---------- Sauvegarde / restauration ----------
-  function getSavedState() {
-    return loadState();
-  }
-
-  function saveCurrentState() {
-    const name = getNameInput()?.value?.trim() || "";
-
-    // récupère tous les gagnants sélectionnés
-    const winners = {};
-    const allSelects = [...document.querySelectorAll("select")];
-
-    // R16 winners
-    initialR16.forEach((m) => {
-      const s = document.querySelector(`[data-slot="${m.id}_w"]`) || document.querySelector(`[data-slot="${m.id + "_w"}"]`);
-      // Dans notre render, le select est créé avec id `${m.id}_w`
-      const rSel = document.querySelector(`[data-slot="${m.id}_w"]`);
-      winners[m.id] = rSel ? (rSel.value || "") : "";
-    });
-
-    // QF + SF + Finale + 3e
-    winners.qf_1 = document.querySelector('[data-slot="qf_1_w"]')?.value || "";
-    winners.qf_2 = document.querySelector('[data-slot="qf_2_w"]')?.value || "";
-    winners.qf_3 = document.querySelector('[data-slot="qf_3_w"]')?.value || "";
-    winners.qf_4 = document.querySelector('[data-slot="qf_4_w"]')?.value || "";
-    winners.sf_1 = document.querySelector('[data-slot="sf_1_w"]')?.value || "";
-    winners.sf_2 = document.querySelector('[data-slot="sf_2_w"]')?.value || "";
-    winners.champion = document.querySelector('[data-slot="final_winner"]')?.value || "";
-    winners.third = document.querySelector('[data-slot="third_winner"]')?.value || "";
-
-    saveState({ name, slots, winners });
-  }
-
-  function restoreStateIntoUI() {
-    const state = getSavedState();
-    if (!state) return;
-
-    const nameInput = getNameInput();
-    if (nameInput && state.name) nameInput.value = state.name;
-
-    // restore slots (safe merge)
-    if (state.slots && typeof state.slots === "object") {
-      for (const [k, v] of Object.entries(state.slots)) {
-        if (k in slots) slots[k] = v || "";
-      }
-    }
-
-    // restore R16 winners
-    if (state.winners && typeof state.winners === "object") {
-      initialR16.forEach((m) => {
-        const sel = document.querySelector(`[data-slot="${m.id}_w"]`);
-        if (sel && state.winners[m.id]) sel.value = state.winners[m.id];
-        if (state.winners[m.id]) slots[m.winnerSlot] = state.winners[m.id];
-      });
-    }
-  }
-
-  // ---------- Boutons ----------
-  function hookButtons() {
-    const { resetBtn, submitBtn } = ensureButtons();
-
-    if (resetBtn) {
-      resetBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        clearState();
-        // reload propre
-        location.reload();
-      });
-    }
-
-    if (submitBtn) {
-      submitBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-
-        const name = getNameInput()?.value?.trim();
-        if (!name) {
-          alert("Entre ton nom d'abord 🙂");
-          return;
-        }
-
-        // payload complet
-        const payload = {
-          name,
-          selections: loadState() || { name, slots, winners: {} },
-        };
-
-        // Si tu as une API côté serveur (recommandé), tu peux recevoir ça :
-        // POST /submit  (JSON)
-        try {
-          const res = await fetch("/submit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          alert("✅ Prono enregistré !");
-        } catch (err) {
-          // Au moins ne casse pas l’UI
-          console.log(err);
-          alert("Erreur (API /submit non trouvée ou serveur). Ton prono est quand même gardé dans ton navigateur.");
-        }
-      });
-    }
-  }
-
-  // ---------- CSS mini (si jamais styles.css est cassé) ----------
-  function injectMiniCSS() {
-    if ($("#miniBracketCSS")) return;
-    const css = `
-      #bracket { margin-top: 18px; }
-      .section { margin: 16px 0; }
-      .section-header { display:flex; align-items:center; justify-content:space-between; margin: 10px 0; }
-      .section-title { margin:0; font-size: 16px; }
-      .badge { background:#7b1f2a; color:#fff; padding:4px 10px; border-radius:999px; font-size:12px; }
-      .match-card { border:1px solid #e8e8e8; border-radius:12px; padding:12px; margin:10px 0; background:#fff; }
-      .match-title { font-weight:600; margin-bottom:8px; }
-      .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; }
-      .row-label { font-size:13px; color:#333; }
-      select { width: 170px; max-width: 100%; padding:8px; border-radius:10px; border:1px solid #ddd; background:#fff; }
-      @media (min-width: 800px) {
-        .section { display:block; }
-        .section .match-card { max-width: 520px; }
-      }
-    `;
-    const style = el("style", { id: "miniBracketCSS" }, [css]);
-    document.head.appendChild(style);
-  }
-
-  // ---------- Start ----------
-  document.addEventListener("DOMContentLoaded", () => {
-    render();
-    // sauvegarde quand on tape le nom
-    const nameInput = getNameInput();
-    if (nameInput) {
-      nameInput.addEventListener("input", () => saveCurrentState());
-    }
+  const res = await fetch("/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
-})();
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${t}`);
+  }
+}
+
+function resetAll() {
+  state.bracket = makeEmptyBracket();
+  saveLocal();
+  render();
+}
+
+/* ====== INIT ====== */
+function wireUI() {
+  loadLocal();
+  render();
+
+  if ($("name")) {
+    $("name").addEventListener("input", (e) => {
+      state.name = e.target.value;
+      saveLocal();
+    });
+  }
+
+  if ($("resetBtn")) {
+    $("resetBtn").addEventListener("click", () => {
+      if (confirm("Réinitialiser ton prono ?")) resetAll();
+    });
+  }
+
+  if ($("submitBtn")) {
+    $("submitBtn").addEventListener("click", async () => {
+      try {
+        await submitToServer();
+        alert("✅ Prono enregistré !");
+      } catch (err) {
+        console.error(err);
+        alert("Erreur: impossible d’enregistrer sur le serveur.");
+      }
+    });
+  }
+}
+
+wireUI();

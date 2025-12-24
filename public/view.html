@@ -1,95 +1,98 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CAN 2025 — Pronostics des amis</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f5f6f8;
-      margin: 0;
-      padding: 20px;
+    :root{
+      --bg:#f6f7fb;
+      --card:#fff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --accent:#0f766e;
+      --win:#065f46;
+      --pill:#111827;
     }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    header{padding:18px 16px;border-bottom:1px solid var(--line);background:#fff}
+    header h1{margin:0;font-size:20px}
+    header a{color:var(--accent);text-decoration:none;font-weight:600}
+    .wrap{display:grid;grid-template-columns:320px 1fr;gap:14px;padding:14px;max-width:1200px;margin:0 auto}
+    @media (max-width: 900px){.wrap{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+    .left{padding:12px}
+    .right{padding:12px}
+    .search{display:flex;gap:8px;margin-bottom:10px}
+    input[type="search"]{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+    .list{max-height:70vh;overflow:auto;border-top:1px solid var(--line)}
+    .item{padding:10px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+    .item:hover{background:#f9fafb}
+    .item.active{background:#ecfeff}
+    .item .name{font-weight:700}
+    .item .meta{font-size:12px;color:var(--muted)}
+    .empty{padding:12px;color:var(--muted)}
+    .titleRow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .badge{font-size:12px;padding:4px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e0e7ff;color:#3730a3}
+    .detailMeta{color:var(--muted);font-size:13px;margin-bottom:10px}
 
-    h1 {
-      margin-bottom: 20px;
+    /* BRACKET */
+    .bracket{
+      display:grid;
+      grid-template-columns: 1.2fr 1fr 1fr 0.9fr 1fr;
+      gap:12px;
+      align-items:start;
     }
-
-    .container {
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 20px;
+    @media (max-width: 900px){
+      .bracket{grid-template-columns:1fr; }
     }
-
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    .list button {
-      width: 100%;
-      text-align: left;
-      padding: 10px;
-      margin-bottom: 6px;
-      border-radius: 8px;
-      border: none;
-      background: #f0f0f0;
-      cursor: pointer;
-      font-size: 14px;
-    }
-
-    .list button:hover {
-      background: #e0e0e0;
-    }
-
-    pre {
-      background: #111;
-      color: #0f0;
-      padding: 12px;
-      border-radius: 8px;
-      overflow-x: auto;
-      font-size: 13px;
-    }
-
-    .empty {
-      color: #777;
-      font-style: italic;
-    }
-
-    a {
-      display: inline-block;
-      margin-bottom: 15px;
-      text-decoration: none;
-      color: #0066cc;
-    }
+    .round{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
+    .round h3{margin:0 0 8px 0;font-size:14px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+    .pill{font-size:12px;color:#fff;background:var(--pill);padding:2px 8px;border-radius:999px}
+    .match{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
+    .match:last-child{margin-bottom:0}
+    .match .label{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+    .team{display:flex;justify-content:space-between;gap:10px;padding:6px 8px;border-radius:10px;background:#f9fafb;border:1px solid #f3f4f6;margin-bottom:6px}
+    .team.win{background:#ecfdf5;border-color:#a7f3d0}
+    .team .tname{font-weight:600}
+    .team .tag{font-size:12px;color:var(--muted)}
+    .winnerLine{font-size:13px;margin-top:6px}
+    .winnerLine b{color:var(--win)}
+    pre{white-space:pre-wrap;word-break:break-word}
   </style>
 </head>
 <body>
-
-  <h1>CAN 2025 — Pronostics des amis</h1>
-
-  <a href="/">← Retour au formulaire</a>
-
-  <div class="container">
-    <div class="card">
-      <h3>Liste des pronos</h3>
-      <div id="list" class="list">
-        <p class="empty">Chargement…</p>
-      </div>
+  <header>
+    <h1>CAN 2025 — Pronostics des amis</h1>
+    <div style="margin-top:6px">
+      <a href="./index.html">← Créer mon prono</a>
     </div>
+  </header>
 
-    <div class="card">
-      <h3>Détail</h3>
-      <div id="detail" class="empty">
-        Clique sur un nom pour afficher son pronostic.
+  <main class="wrap">
+    <section class="card left">
+      <div class="search">
+        <input id="q" type="search" placeholder="Rechercher un nom..." />
       </div>
-    </div>
-  </div>
+      <div id="list" class="list"></div>
+      <div id="listEmpty" class="empty" style="display:none">Aucun prono pour le moment.</div>
+    </section>
 
-  <script src="view.js"></script>
+    <section class="card right">
+      <div class="titleRow">
+        <div>
+          <div style="font-weight:800">Détail</div>
+          <div class="detailMeta" id="meta">Clique sur un nom à gauche.</div>
+        </div>
+        <div class="badge" id="countBadge">0 pronos</div>
+      </div>
+
+      <div id="detail"></div>
+    </section>
+  </main>
+
+  <script src="./view.js"></script>
 </body>
 </html>
