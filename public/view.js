@@ -1,43 +1,97 @@
-(async () => {
-  const list = document.getElementById("list");
-  if (!list) return;
+const listEl = document.getElementById("list");
+const detailEl = document.getElementById("detail");
+
+let allPronos = [];
+
+// Sécurité affichage HTML
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("fr-FR");
+}
+
+// Charger tous les pronos depuis l’API
+async function loadPronos() {
+  listEl.innerHTML = "Chargement…";
+  detailEl.innerHTML = "Clique sur un nom pour afficher son prono.";
 
   try {
     const res = await fetch("/pronos");
-    const data = await res.json();
+    if (!res.ok) throw new Error("HTTP " + res.status);
 
-    if (!data.items || data.items.length === 0) {
-      list.innerHTML = "<p>Aucun prono pour le moment.</p>";
+    const data = await res.json();
+    allPronos = Array.isArray(data) ? data : [];
+
+    if (allPronos.length === 0) {
+      listEl.innerHTML = "<i>Aucun prono pour le moment.</i>";
       return;
     }
 
-    list.innerHTML = "";
+    // Plus récents en premier
+    allPronos.sort((a, b) =>
+      (b.createdAt || "").localeCompare(a.createdAt || "")
+    );
 
-    data.items.forEach((p) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.style.marginTop = "10px";
-
-      const title = document.createElement("h3");
-      title.textContent = p.name;
-
-      const meta = document.createElement("div");
-      meta.style.fontSize = "12px";
-      meta.style.opacity = "0.7";
-      meta.textContent = p.created_at ? `Envoyé: ${p.created_at}` : "";
-
-      const pre = document.createElement("pre");
-      pre.style.whiteSpace = "pre-wrap";
-      pre.textContent = JSON.stringify(p.selections, null, 2);
-
-      card.appendChild(title);
-      card.appendChild(meta);
-      card.appendChild(pre);
-
-      list.appendChild(card);
-    });
-  } catch (e) {
-    console.log(e);
-    list.innerHTML = "<p>Erreur de chargement des pronos.</p>";
+    renderList();
+  } catch (err) {
+    console.error(err);
+    listEl.innerHTML =
+      "<span style='color:red'>Erreur chargement pronos</span>";
   }
-})();
+}
+
+// Affiche la liste des noms
+function renderList() {
+  listEl.innerHTML = "";
+
+  allPronos.forEach((p, index) => {
+    const div = document.createElement("div");
+    div.className = "prono-item";
+    div.style.cursor = "pointer";
+    div.style.padding = "6px 0";
+
+    div.innerHTML = `
+      <b>${escapeHtml(p.name || "Sans nom")}</b>
+      <small style="color:#666">
+        ${p.createdAt ? " — " + formatDate(p.createdAt) : ""}
+      </small>
+    `;
+
+    div.onclick = () => showDetail(index);
+    listEl.appendChild(div);
+  });
+}
+
+// Affiche le détail d’un prono
+function showDetail(index) {
+  const p = allPronos[index];
+  if (!p) return;
+
+  detailEl.innerHTML = `
+    <h3>${escapeHtml(p.name || "Sans nom")}</h3>
+    <small style="color:#666">
+      ${p.createdAt ? formatDate(p.createdAt) : ""}
+    </small>
+    <pre style="
+      background:#111;
+      color:#eee;
+      padding:10px;
+      border-radius:6px;
+      margin-top:10px;
+      overflow:auto;
+    ">${escapeHtml(JSON.stringify(p.selections, null, 2))}</pre>
+  `;
+}
+
+// Chargement automatique au démarrage
+loadPronos();
