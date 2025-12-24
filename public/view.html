@@ -1,155 +1,95 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CAN 2025 — Pronostics des amis</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background:#f6f7fb; }
-    header { background:#fff; padding:16px 20px; border-bottom:1px solid #e6e6e6; }
-    header .top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    h1 { margin:0; font-size:22px; }
-    nav a { text-decoration:none; color:#0b5; font-weight:600; }
-    .container { max-width:1100px; margin:18px auto; padding:0 16px; display:grid; grid-template-columns: 1fr 1.2fr; gap:16px; }
-    .card { background:#fff; border:1px solid #e6e6e6; border-radius:10px; padding:14px; box-shadow: 0 2px 8px rgba(0,0,0,.03); }
-    .muted { color:#777; font-size:14px; }
-    .list-item { padding:10px 10px; border-radius:8px; cursor:pointer; border:1px solid transparent; display:flex; justify-content:space-between; gap:10px; }
-    .list-item:hover { background:#f3f6ff; border-color:#dbe3ff; }
-    .badge { font-size:12px; background:#eef; padding:2px 8px; border-radius:999px; color:#335; white-space:nowrap; }
-    pre { white-space:pre-wrap; word-break:break-word; background:#0b1020; color:#e7e7e7; padding:12px; border-radius:10px; overflow:auto; }
-    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
-    button { border:0; padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:700; }
-    .btn { background:#0b5; color:#fff; }
-    .btn2 { background:#eee; }
-    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f5f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .list button {
+      width: 100%;
+      text-align: left;
+      padding: 10px;
+      margin-bottom: 6px;
+      border-radius: 8px;
+      border: none;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .list button:hover {
+      background: #e0e0e0;
+    }
+
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+
+    .empty {
+      color: #777;
+      font-style: italic;
+    }
+
+    a {
+      display: inline-block;
+      margin-bottom: 15px;
+      text-decoration: none;
+      color: #0066cc;
+    }
   </style>
 </head>
-
 <body>
-  <header>
-    <div class="top">
-      <h1>CAN 2025 — Pronostics des amis</h1>
-      <nav><a href="./index.html">Créer mon prono</a></nav>
-    </div>
-  </header>
+
+  <h1>CAN 2025 — Pronostics des amis</h1>
+
+  <a href="/">← Retour au formulaire</a>
 
   <div class="container">
     <div class="card">
-      <h2 style="margin:0 0 10px 0; font-size:16px;">Liste des pronos</h2>
-      <div id="pronoList" class="muted">Chargement…</div>
-
-      <div class="actions">
-        <button class="btn2" id="reloadBtn">Rafraîchir</button>
+      <h3>Liste des pronos</h3>
+      <div id="list" class="list">
+        <p class="empty">Chargement…</p>
       </div>
-      <p class="muted" style="margin-top:10px;">
-        Astuce : si tu viens juste d’envoyer un prono, attends 2–3 secondes puis clique “Rafraîchir”.
-      </p>
     </div>
 
     <div class="card">
-      <h2 style="margin:0 0 10px 0; font-size:16px;">Détail</h2>
-      <div id="pronoDetail" class="muted">Clique sur un nom pour afficher son pronostic.</div>
-
-      <div class="actions">
-        <button class="btn" id="copyBtn" disabled>Copier le JSON</button>
+      <h3>Détail</h3>
+      <div id="detail" class="empty">
+        Clique sur un nom pour afficher son pronostic.
       </div>
     </div>
   </div>
 
-  <script>
-    const listEl = document.getElementById("pronoList");
-    const detailEl = document.getElementById("pronoDetail");
-    const reloadBtn = document.getElementById("reloadBtn");
-    const copyBtn = document.getElementById("copyBtn");
-
-    let currentDetailText = "";
-
-    function escapeHtml(str) {
-      return String(str)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function formatDate(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d)) return "";
-      return d.toLocaleString("fr-FR");
-    }
-
-    function showDetail(item) {
-      const pretty = JSON.stringify(item, null, 2);
-      currentDetailText = pretty;
-      copyBtn.disabled = false;
-
-      detailEl.innerHTML = `
-        <div class="muted" style="margin-bottom:8px;">
-          <b>${escapeHtml(item.name || "Sans nom")}</b>
-          ${item.createdAt ? ` — <span class="badge">${escapeHtml(formatDate(item.createdAt))}</span>` : ""}
-        </div>
-        <pre>${escapeHtml(pretty)}</pre>
-      `;
-    }
-
-    async function loadPronos() {
-      listEl.textContent = "Chargement…";
-      detailEl.innerHTML = `<div class="muted">Clique sur un nom pour afficher son pronostic.</div>`;
-      copyBtn.disabled = true;
-      currentDetailText = "";
-
-      try {
-        const res = await fetch("/pronos", { headers: { "Accept": "application/json" } });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) {
-          listEl.innerHTML = `<div class="muted">Aucun prono pour le moment.</div>`;
-          return;
-        }
-
-        // Affiche le plus récent en premier
-        data.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-
-        listEl.innerHTML = "";
-        data.forEach((item, idx) => {
-          const div = document.createElement("div");
-          div.className = "list-item";
-          div.innerHTML = `
-            <span><b>${escapeHtml(item.name || ("Prono #" + (idx+1)))}</b></span>
-            <span class="badge">${escapeHtml(formatDate(item.createdAt) || "")}</span>
-          `;
-          div.addEventListener("click", () => showDetail(item));
-          listEl.appendChild(div);
-        });
-
-      } catch (err) {
-        console.error(err);
-        listEl.innerHTML = `
-          <div class="muted" style="color:#b00;">
-            Impossible de charger /pronos. Vérifie que ton serveur tourne et que l’API /pronos répond.
-          </div>
-        `;
-      }
-    }
-
-    reloadBtn.addEventListener("click", loadPronos);
-
-    copyBtn.addEventListener("click", async () => {
-      if (!currentDetailText) return;
-      try {
-        await navigator.clipboard.writeText(currentDetailText);
-        copyBtn.textContent = "Copié ✅";
-        setTimeout(() => (copyBtn.textContent = "Copier le JSON"), 1200);
-      } catch {
-        alert("Impossible de copier (autorisation navigateur).");
-      }
-    });
-
-    // Chargement auto
-    loadPronos();
-  </script>
+  <script src="view.js"></script>
 </body>
 </html>
