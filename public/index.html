@@ -2,43 +2,57 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CAN 2025 — Pronostics (Bracket)</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CAN 2025 — Pronostics</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:#f6f7fb}
+    header{background:#fff;border-bottom:1px solid #e5e7eb;padding:16px}
+    h1{margin:0;font-size:20px}
+    main{max-width:1100px;margin:0 auto;padding:14px}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    input,button{padding:10px 12px;border-radius:10px;border:1px solid #e5e7eb}
+    button{cursor:pointer;font-weight:700}
+    .btn{background:#0f766e;color:#fff;border:0}
+    .btn2{background:#fff}
+    a{color:#0f766e;text-decoration:none;font-weight:700}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+    .match{border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:10px}
+    .match:last-child{margin-bottom:0}
+    .small{font-size:12px;color:#6b7280;margin-bottom:8px}
+    select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #e5e7eb;margin-bottom:8px}
+    .disabled{background:#f9fafb}
+  </style>
 </head>
 <body>
   <header>
-    <div class="top">
-      <h1>CAN 2025 — Pronostics (Soukara Gassi)</h1>
-      <nav>
-        <a href="./view.html">Voir les pronos</a>
-      </nav>
-    </div>
+    <h1>CAN 2025 — Pronostics Soukara Gassi </h1>
   </header>
- 
-  <div class="container">
-    <div class="card">
-      <div class="row">
-        <div>
-          <label for="username">Ton nom</label>
-          <input id="username" type="text" placeholder="Ex: Kalse" />
-          <div class="notice">Pas de mot de passe (mode “entre amis”).</div>
-        </div>
-        <div style="display:flex; gap:10px; justify-content:flex-end; align-items:end;">
-          <button class="secondary" id="btnReset">Réinitialiser</button>
-          <button class="primary" id="btnSubmit">Soumettre mon prono</button>
-        </div>
+
+  <main>
+    <div class="bar">
+      <input id="name" placeholder="Ton nom (ex: Amine)" />
+      <button id="resetBtn" class="btn2" type="button">Réinitialiser</button>
+      <button id="submitBtn" class="btn" type="button">Soumettre mon prono</button>
+      <a href="./view.html">Voir les pronostics des amis →</a>
+    </div>
+
+    <div id="status" class="small"></div>
+
+    <div class="grid">
+      <div class="card">
+        <h2 style="margin:0 0 10px 0;font-size:16px">Huitièmes </h2>
+        <div id="r16"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 10px 0;font-size:16px">Quarts → Demi → Finale + 3e place</h2>
+        <div id="nextRounds"></div>
       </div>
     </div>
-<div id="bracket"></div>
 
-    <div class="bracket" id="bracketRoot"></div>
-
-    <p class="small">
-      Astuce: choisis d’abord les équipes dans les 8e, puis sélectionne le gagnant de chaque match pour remplir automatiquement les tours suivants.
-    </p>
-  </div>
-
-  <script src="./app.js"></script>
+    <script src="./app.js"></script>
+  </main>
 </body>
 </html>
