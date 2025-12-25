@@ -3,39 +3,75 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CAN 2025 — Pronostics des amis</title>
+  <title>CAN 2025 — Pronostics</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:#f6f7fb}
-    header{background:#fff;border-bottom:1px solid #e5e7eb;padding:16px}
-    h1{margin:0;font-size:20px}
-    a{color:#0f766e;text-decoration:none;font-weight:700}
-    main{max-width:1100px;margin:0 auto;padding:14px;display:grid;grid-template-columns:320px 1fr;gap:12px}
+    :root{
+      --bg:#f6f7fb; --card:#fff; --line:#e5e7eb; --muted:#6b7280;
+      --accent:#0f766e; --winbg:#ecfdf5; --winline:#a7f3d0;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg)}
+    header{background:#fff;border-bottom:1px solid var(--line);padding:14px 16px}
+    header h1{margin:0;font-size:18px}
+    header a{color:var(--accent);text-decoration:none;font-weight:700}
+    main{max-width:1200px;margin:0 auto;padding:14px;display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media(max-width:900px){main{grid-template-columns:1fr}}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
-    .item{padding:10px;border-bottom:1px solid #e5e7eb;cursor:pointer}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+    .search{display:flex;gap:8px;margin-bottom:10px}
+    input[type="search"]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+    .list{max-height:70vh;overflow:auto;border-top:1px solid var(--line)}
+    .item{padding:10px;border-bottom:1px solid var(--line);cursor:pointer}
     .item:hover{background:#f9fafb}
-    .item b{display:block}
-    .meta{font-size:12px;color:#6b7280}
-    .round{border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:10px}
-    .match{border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:10px}
-    .team{display:flex;justify-content:space-between;background:#f9fafb;border:1px solid #f3f4f6;border-radius:10px;padding:6px 8px;margin-bottom:6px}
-    .win{background:#ecfdf5;border-color:#a7f3d0}
+    .item.active{background:#ecfeff}
+    .name{font-weight:800}
+    .meta{font-size:12px;color:var(--muted);margin-top:3px}
+    .empty{color:var(--muted);font-style:italic;padding:10px}
+
+    /* bracket */
+    .topline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .badge{font-size:12px;color:#fff;background:#111827;padding:2px 8px;border-radius:999px}
+    .bracket{display:grid;grid-template-columns:repeat(5,minmax(200px,1fr));gap:12px;align-items:start}
+    @media(max-width:1100px){.bracket{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:520px){.bracket{grid-template-columns:1fr}}
+    .round{border:1px solid var(--line);border-radius:12px;padding:10px}
+    .round h3{margin:0 0 8px 0;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+    .pill{font-size:12px;color:#fff;background:#111827;padding:2px 8px;border-radius:999px}
+    .match{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
+    .match:last-child{margin-bottom:0}
+    .label{font-size:12px;color:var(--muted);margin-bottom:8px}
+    .team{display:flex;justify-content:space-between;gap:10px;padding:6px 8px;border-radius:10px;background:#f9fafb;border:1px solid #f3f4f6;margin-bottom:6px}
+    .team.win{background:var(--winbg);border-color:var(--winline)}
+    .team .tname{font-weight:700}
+    .team .tag{font-size:12px;color:var(--muted)}
+    .winnerLine{font-size:13px;margin-top:6px}
+    .winnerLine b{color:var(--accent)}
   </style>
 </head>
 <body>
   <header>
-    <h1>CAN 2025 — Pronostics des amis</h1>
+    <h1>CAN 2025 — Pronostics Soukara Gassi</h1>
     <div style="margin-top:6px"><a href="./index.html">← Retour</a></div>
   </header>
 
   <main>
     <section class="card">
-      <div id="list"></div>
-      <div id="empty" class="meta" style="display:none;padding:10px">Aucun prono.</div>
+      <div class="search">
+        <input id="q" type="search" placeholder="Rechercher un nom..." />
+      </div>
+      <div id="list" class="list"></div>
+      <div id="empty" class="empty" style="display:none">Aucun prono pour le moment.</div>
     </section>
 
     <section class="card">
-      <div id="detail" class="meta">Clique sur un nom.</div>
+      <div class="topline">
+        <div>
+          <div style="font-weight:900">Détail</div>
+          <div id="meta" class="meta">Clique sur un nom à gauche.</div>
+        </div>
+        <div id="count" class="badge">0</div>
+      </div>
+
+      <div id="detail"></div>
     </section>
   </main>
 
