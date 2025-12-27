@@ -2,7 +2,7 @@ const COUNTRIES = [
   "Maroc","Algérie","Tunisie","Égypte","Sénégal","Côte d’Ivoire",
   "Nigeria","Ghana","Cameroun","Mali","Burkina Faso","Guinée",
   "RD Congo","Afrique du Sud","Zambie","Angola","Gabon","Ouganda",
-  "Cap-Vert","Guinée équatoriale","Mozambique","Namibie","Comores","Zimbabwe"
+  "Tanzanie","Guinée équatoriale","Mozambique","Benin","Comores","Zimbabwe"
 ];
 
 const R16 = [
@@ -74,8 +74,8 @@ function autoPropagate() {
   }
 
   // SF from QF winners
-  b.sf.m1.home = b.qf.m1.winner; b.sf.m1.away = b.qf.m2.winner;
-  b.sf.m2.home = b.qf.m3.winner; b.sf.m2.away = b.qf.m4.winner;
+  b.sf.m1.home = b.qf.m1.winner; b.sf.m1.away = b.qf.m3.winner;
+  b.sf.m2.home = b.qf.m2.winner; b.sf.m2.away = b.qf.m4.winner;
 
   for (const k of ["m1","m2"]) {
     const m = b.sf[k];
